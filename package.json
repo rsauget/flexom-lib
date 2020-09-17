@@ -1,0 +1,31 @@
+{
+  "name": "@rsauget/flexom-lib",
+  "version": "1.0.2",
+  "description": "Library to interact with Flexom servers",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "lint": "eslint .",
+    "build": "npm run lint && tsc && npm link",
+    "watch": "nodemon --watch \"src\" --ext ts --exec \"npm run build\"",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "prepublishOnly": "npm run lint && npm run build"
+  },
+  "author": {
+    "name": "Raphaël Sauget"
+  },
+  "license": "ISC",
+  "devDependencies": {
+    "@types/form-urlencoded": "^2.0.1",
+    "@typescript-eslint/eslint-plugin": "^4.1.0",
+    "@typescript-eslint/parser": "^4.1.0",
+    "eslint": "^7.9.0",
+    "nodemon": "^2.0.4",
+    "typescript": "^4.0.2"
+  },
+  "dependencies": {
+    "bottleneck": "^2.19.5",
+    "form-urlencoded": "^4.2.1",
+    "typed-rest-client": "^1.7.3"
+  }
+}
