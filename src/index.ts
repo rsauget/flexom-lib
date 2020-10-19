@@ -1,4 +1,4 @@
-import { FAKE_DEVICE } from './device';
+import { createFakeDevice } from './device';
 import { Hemis } from './hemis/hemis';
 import { Thing } from './hemis/model/thing';
 import { Factor, Zone } from './hemis/model/zone';
@@ -9,7 +9,8 @@ interface Client {
   getThings: () => Promise<Thing[]>,
   getZones: () => Promise<Zone[]>,
   getZone: (id: string) => Promise<Zone>,
-  setZoneFactor: (id: string, factor: Factor, value: number) => Promise<void>
+  setZoneFactor: (id: string, factor: Factor, value: number) => Promise<void>,
+  testData?: unknown,
 }
 
 export {
@@ -25,7 +26,7 @@ function FlexomError(msg: string) {
 }
 
 async function createClient(email: string, password: string): Promise<Client> {
-  const device = FAKE_DEVICE;
+  const device = createFakeDevice(email);
   const ubiant = new Ubiant(device);
   const ubiantUser = await ubiant.login(email, password);
   if (!ubiantUser) {
@@ -46,32 +47,37 @@ async function createClient(email: string, password: string): Promise<Client> {
   if (!hemisUser) {
     throw FlexomError('Hemis login failed');
   }
-  // const auth = {
-  //   device,
-  //   ubiant: {
-  //     token: ubiantUser.token,
-  //   },
-  //   hemis: {
-  //     base_url: building.hemis_base_url,
-  //     user_id: ubiantUser.id,
-  //     token: hemisUser.token,
-  //   },
-  // };
+  const auth = {
+    device,
+    ubiant,
+    ubiantUser,
+    hemis,
+    hemisUser,
+    buildings,
+  };
+  const refreshToken = async () => {
+    if (ubiant.isTokenValid()) {
+      return;
+    }
+    await ubiant.login(email, password);
+  };
   return {
     async getThings() {
+      await refreshToken();
       return hemis.getThings();
     },
-
     async getZones() {
+      await refreshToken();
       return hemis.getZones();
     },
-
     async getZone(id: string) {
+      await refreshToken();
       return hemis.getZone(id);
     },
-
     async setZoneFactor(id: string, factor: Factor, value: number) {
+      await refreshToken();
       return hemis.setZoneFactor(id, factor, value);
     },
+    ...(process.env.NODE_ENV === 'test' && { testData: { auth } }),
   };
 }

@@ -1,8 +1,20 @@
+import jwt from 'jsonwebtoken';
+import moment from 'moment';
 import { User } from './model/user';
 import { Device } from './model/device';
 import { RestClient } from 'typed-rest-client/RestClient';
 import { Authorization } from './model/authorization';
 import { Building } from './model/building';
+
+interface UbiantToken {
+  sub: string;
+  iss: string;
+  exp: number;
+  iat: number;
+  brand: string;
+  jti: string;
+  email: string;
+}
 
 export class Ubiant {
   private device: Device;
@@ -57,5 +69,14 @@ export class Ubiant {
       this.options,
     );
     return authorizations.result;
+  }
+
+  public isTokenValid() {
+    if (!this.token) {
+      return false;
+    }
+    const tokenData = jwt.decode(this.token) as UbiantToken;
+    const expirationDate = moment.unix(tokenData.exp);
+    return moment().add(1, 'hours').isBefore(expirationDate);
   }
 }
