@@ -25,7 +25,7 @@ function FlexomError(msg: string) {
   return new Error(`Flexom lib error: ${msg}`);
 }
 
-async function createClient(email: string, password: string): Promise<Client> {
+async function login(email: string, password: string) {
   const device = createFakeDevice(email);
   const ubiant = new Ubiant(device);
   const ubiantUser = await ubiant.login(email, password);
@@ -47,7 +47,7 @@ async function createClient(email: string, password: string): Promise<Client> {
   if (!hemisUser) {
     throw FlexomError('Hemis login failed');
   }
-  const auth = {
+  return {
     device,
     ubiant,
     ubiantUser,
@@ -55,27 +55,33 @@ async function createClient(email: string, password: string): Promise<Client> {
     hemisUser,
     buildings,
   };
-  const refreshToken = async () => {
-    if (ubiant.isTokenValid()) {
-      return;
+}
+
+async function createClient(email: string, password: string): Promise<Client> {  
+  let auth = await login(email, password);
+
+  const getAuth = async () => {
+    if (!auth?.ubiant?.isTokenValid()) {
+      auth = await login(email, password);
     }
-    await ubiant.login(email, password);
+    return auth;
   };
+  
   return {
     async getThings() {
-      await refreshToken();
+      const { hemis } = await getAuth();
       return hemis.getThings();
     },
     async getZones() {
-      await refreshToken();
+      const { hemis } = await getAuth();
       return hemis.getZones();
     },
     async getZone(id: string) {
-      await refreshToken();
+      const { hemis } = await getAuth();
       return hemis.getZone(id);
     },
     async setZoneFactor(id: string, factor: Factor, value: number) {
-      await refreshToken();
+      const { hemis } = await getAuth();
       return hemis.setZoneFactor(id, factor, value);
     },
     ...(process.env.NODE_ENV === 'test' && { testData: { auth } }),
