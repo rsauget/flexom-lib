@@ -12,7 +12,7 @@ type State =
   | 'KO'
   | 'NOT_NEEDED';
 
-interface Description {
+type Description = {
   name: string;
   value: string;
   registrationDate: number;
@@ -23,7 +23,7 @@ interface Description {
   log: null;
 }
 
-export interface Thing {
+export type Thing = {
   id: string;
   externalId: string | null;
   comID: string;
@@ -44,8 +44,8 @@ export interface Thing {
     hasActuators: boolean;
     hasSensors: boolean;
     protocol: Protocol;
-    sensorsFactor: { [key: string]: string };
-    actuatorsFactors: { [key: string]: string[] };
+    sensorsFactor: Record<string, string>;
+    actuatorsFactors: Record<string, string[]>;
     targetZone: null;
     descriptions: Description[];
   };
@@ -81,5 +81,5 @@ export interface Thing {
   };
   rssi: number;
   locked: boolean;
-  hardwareTypeComIDs: { [key: string]: string };
+  hardwareTypeComIDs: Record<string, string>;
 }

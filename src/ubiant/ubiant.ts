@@ -1,82 +1,73 @@
+import axios from 'axios';
 import jwt from 'jsonwebtoken';
 import moment from 'moment';
 import { User } from './model/user';
 import { Device } from './model/device';
-import { RestClient } from 'typed-rest-client/RestClient';
-import { Authorization } from './model/authorization';
+import { UbiantToken } from './model/authorization';
 import { Building } from './model/building';
 
-interface UbiantToken {
-  sub: string;
-  iss: string;
-  exp: number;
-  iat: number;
-  brand: string;
-  jti: string;
-  email: string;
+export type UbiantService = {
+  login: (_: { email: string, password: string }) => Promise<User>,
+  getBuildings: () => Promise<Building[]>,
+  isTokenValid: () => boolean,
+  // getAuthorizations: () => Promise<Authorization[]>
 }
 
-export class Ubiant {
-  private device: Device;
-  private client: RestClient;
-  private token?: string;
-  private get options() {
-    return {
-      additionalHeaders: {
-        Authorization: `Bearer ${this.token}`,
-        TE: 'identity',
-      },
-    };
-  }
+export function createUbiantService({ device }: {device: Device }): UbiantService {
+  let token: string;
 
-  public constructor(device: Device, token?: string) {
-    this.device = device;
-    this.token = token;
-    this.client = new RestClient('BestHTTP', 'https://hemisphere.ubiant.com');
-  }
-
-  public async login(email: string, password: string): Promise<User | null> {
-    try {
-      const user = await this.client.create<User>('/users/signin', {
-        device: this.device,
-        email: email,
-        password: password,
-      });
-      if (user.result) {
-        this.token = user.result.token;
-        return user.result;
-      } else {
-        return null;
+  const client = axios.create({
+    baseURL: 'https://hemisphere.ubiant.com',
+    headers: {
+      TE: 'identity',
+      'User-Agent': 'BestHTTP',
+    },
+    transformRequest: [(data, headers) => {
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
       }
-    } catch (error) {
-      return null;
-    }
-  }
+      headers['Content-Type'] = 'application/json';
+      return JSON.stringify(data);
+    }],
+  });
 
-  public async getBuildings(): Promise<Building[] | null> {
-    const buildings = await this.client.get<Building[]>(
+  const login: UbiantService['login'] = async ({ email, password }) => {
+    const { data: user } = await client.post<User>('/users/signin', {
+      device,
+      email,
+      password,
+    });
+    token = user.token;
+    return user;
+  };
+
+  const getBuildings: UbiantService['getBuildings'] = async () => {
+    const { data: buildings } = await client.get<Building[]>(
       '/buildings/mine/infos',
-      this.options,
     );
-    return buildings.result;
-  }
+    return buildings;
+  };
 
-  public async getAuthorizations(
-    building: Building,
-  ): Promise<Authorization[] | null> {
-    const authorizations = await this.client.get<Authorization[]>(
-      `/buildings/${building.buildingId}/authorizations`,
-      this.options,
-    );
-    return authorizations.result;
-  }
+  // const getAuthorizations: UbiantService['getAuthorizations'] = async ({ building }) => {
+  //   const { data: authorizations } = await client.get<Authorization[]>(
+  //     `/buildings/${building.buildingId}/authorizations`,
+  //   );
+  //   return authorizations;
+  // };
 
-  public isTokenValid() {
-    if (!this.token) {
+  const isTokenValid: UbiantService['isTokenValid'] = () => {
+    if (!token) {
       return false;
     }
-    const tokenData = jwt.decode(this.token) as UbiantToken;
+    const tokenData = jwt.decode(token) as UbiantToken;
     const expirationDate = moment.unix(tokenData.exp);
     return moment().add(1, 'hours').isBefore(expirationDate);
-  }
+  };
+
+  return {
+    login,
+    getBuildings,
+    isTokenValid,
+    // getAuthorizations,
+  };
 }

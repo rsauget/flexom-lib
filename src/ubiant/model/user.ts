@@ -2,7 +2,7 @@ import { Device } from './device';
 
 type Role = 'BASIC';
 
-export interface User {
+export type User = {
   activated: boolean;
   birth_date: string;
   creation_date: number;

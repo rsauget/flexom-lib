@@ -1,15 +1,11 @@
+import _ from 'lodash';
 import { createFakeDevice } from './device';
-import { Hemis } from './hemis/hemis';
+import { createHemisService, HemisService } from './hemis/hemis';
 import { Thing } from './hemis/model/thing';
 import { Factor, Zone } from './hemis/model/zone';
-// import { Auth } from './model/auth';
-import { Ubiant } from './ubiant/ubiant';
+import { createUbiantService } from './ubiant/ubiant';
 
-interface Client {
-  getThings: () => Promise<Thing[]>,
-  getZones: () => Promise<Zone[]>,
-  getZone: (id: string) => Promise<Zone>,
-  setZoneFactor: (id: string, factor: Factor, value: number) => Promise<void>,
+type Client = Omit<HemisService, 'login'> & {
   testData?: unknown,
 }
 
@@ -20,33 +16,27 @@ export {
   Client,
   createClient,
 };
-
-function FlexomError(msg: string) {
-  return new Error(`Flexom lib error: ${msg}`);
+  
+function throwError(msg: string): never {
+  throw new Error(`[flexom-lib] ERROR: ${msg}`);
 }
 
-async function login(email: string, password: string) {
-  const device = createFakeDevice(email);
-  const ubiant = new Ubiant(device);
-  const ubiantUser = await ubiant.login(email, password);
-  if (!ubiantUser) {
-    throw FlexomError('Ubiant login failed');
-  }
+async function login({ email, password }: { email: string, password: string }) {
+  const device = createFakeDevice({ email });
+  const ubiant = createUbiantService({ device });
+  const ubiantUser = await ubiant.login({ email, password });
   const buildings = await ubiant.getBuildings();
-  if (!buildings || buildings.length === 0) {
-    throw FlexomError('No building found');
+  if (_.isEmpty(buildings)) {
+    return throwError('No building found');
   }
   // TODO: handle multiple buildings
-  const building = buildings[0];
-  const hemis = new Hemis(building.hemis_base_url, ubiantUser.id, device.uid);
-  const hemisUser = await hemis.login(
-    ubiantUser.email,
-    building.authorizationToken,
-    building.kernel_slot,
-  );
-  if (!hemisUser) {
-    throw FlexomError('Hemis login failed');
-  }
+  const building = _.first(buildings)!;
+  const hemis = createHemisService({ url: building.hemis_base_url, userid: ubiantUser.id, deviceid: device.uid });
+  const hemisUser = await hemis.login({
+    email: ubiantUser.email,
+    token: building.authorizationToken,
+    kernelId: building.kernel_slot,
+  });
   return {
     device,
     ubiant,
@@ -57,33 +47,23 @@ async function login(email: string, password: string) {
   };
 }
 
-async function createClient(email: string, password: string): Promise<Client> {  
-  let auth = await login(email, password);
+async function createClient({ email, password }: { email: string, password: string }): Promise<Client> {
+  let auth = await login({ email, password });
 
-  const getAuth = async () => {
-    if (!auth?.ubiant?.isTokenValid()) {
-      auth = await login(email, password);
-    }
-    return auth;
-  };
+  function withAuth<T extends unknown[], U>(fn: (_: typeof auth) => (...args: T) => Promise<U>) {
+    return async (...args: T) => {
+      if (!auth?.ubiant?.isTokenValid()) {
+        auth = await login({ email, password });
+      }
+      return fn(auth)(...args);
+    };
+  }
   
   return {
-    async getThings() {
-      const { hemis } = await getAuth();
-      return hemis.getThings();
-    },
-    async getZones() {
-      const { hemis } = await getAuth();
-      return hemis.getZones();
-    },
-    async getZone(id: string) {
-      const { hemis } = await getAuth();
-      return hemis.getZone(id);
-    },
-    async setZoneFactor(id: string, factor: Factor, value: number) {
-      const { hemis } = await getAuth();
-      return hemis.setZoneFactor(id, factor, value);
-    },
+    getThings: withAuth(({ hemis }) => hemis.getThings),
+    getZones: withAuth(({ hemis }) => hemis.getZones),
+    getZone: withAuth(({ hemis }) => hemis.getZone),
+    setZoneFactor: withAuth(({ hemis }) => hemis.setZoneFactor),
     ...(process.env.NODE_ENV === 'test' && { testData: { auth } }),
   };
 }

@@ -1,4 +1,4 @@
-export interface Device {
+export type Device = {
     first_connection: number;
     last_connection: number;
     model: string;

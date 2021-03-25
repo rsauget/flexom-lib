@@ -7,7 +7,7 @@ export const MASTER_ZONE_ID = 'MyHemis';
 
 type Unit = '%';
 
-export interface Settings {
+export type Settings = {
   actuatorCount?: number;
   hiddenValue?: null;
   hiddenValueEnd?: null;
@@ -18,13 +18,11 @@ export interface Settings {
   value: number;
 }
 
-export interface Zone {
+export type Zone = {
   id: string;
   name: string;
   parentId?: string | null;
   surface?: string;
   type?: string | null;
-  settings: {
-    [factor in Factor]?: Settings;
-  };
+  settings: Record<Factor, Settings>;
 }

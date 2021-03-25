@@ -1,0 +1,7 @@
+{
+  "file": ["./tests/setup.ts"],
+  "spec": ["./tests/**/*.ts"],
+  "ignore": ["./tests/setup.ts"],
+  "timeout": "60000",
+  "require": "ts-node/register"
+}

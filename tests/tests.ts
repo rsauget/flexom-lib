@@ -1,31 +1,24 @@
 import * as Flexom from '../src';
-import path from 'path';
-import dotenv from 'dotenv';
 import { describe, it } from 'mocha';
 import { expect } from 'chai';
 import { Device } from '../src/ubiant/model/device';
 import { Building } from '../src/ubiant/model/building';
 import { User as UbiantUser } from '../src/ubiant/model/user';
 import { User as HemisUser } from '../src/hemis/model/user';
-import { Ubiant } from '../src/ubiant/ubiant';
-
+import { UbiantService } from '../src/ubiant/ubiant';
 interface FlexomTestData {
   auth: {
     device: Device,
     ubiantUser: UbiantUser,
     hemisUser: HemisUser,
     buildings: Building[],
-    ubiant: Ubiant
+    ubiant: UbiantService
   }
 }
 describe('Integration with Flexom APIs', () => {
-  before(() => {
-    dotenv.config({ path: path.join(__dirname, '.env') });
-  });
-
   describe('Login', () => {
     it('correct credentials', async () => {
-      const flexom = await Flexom.createClient(process.env.FLEXOM_EMAIL!, process.env.FLEXOM_PASSWORD!);
+      const flexom = await Flexom.createClient({ email: process.env.FLEXOM_EMAIL!, password: process.env.FLEXOM_PASSWORD! });
       const { auth } = flexom.testData as FlexomTestData;
       const { ubiant, ubiantUser, hemisUser, device, buildings } = auth;
       expect(ubiant.isTokenValid()).to.be.true;
@@ -37,12 +30,50 @@ describe('Integration with Flexom APIs', () => {
     });
     it('incorrect credentials', async () => {
       try {
-        await Flexom.createClient(process.env.FLEXOM_EMAIL!, 'wrong_password');
+        await Flexom.createClient({ email: process.env.FLEXOM_EMAIL!, password: 'wrong_password' });
         expect.fail();
       } catch (error) {
-        expect(error.message).to.equal('Flexom lib error: Ubiant login failed');
+        expect(error.message).to.equal('Request failed with status code 401');
       }
     });
   });
-  
+
+  describe('Commands', () => {
+    it('Toggle light in test zone', async () => {
+      const id = process.env.FLEXOM_TEST_ZONE!;
+      const factor = 'BRI';
+      const flexom = await Flexom.createClient({ email: process.env.FLEXOM_EMAIL!, password: process.env.FLEXOM_PASSWORD! });
+      await setFactorAndWaitForChange({ flexom, id, factor, value: 1 });
+      await setFactorAndWaitForChange({ flexom, id, factor, value: 0 });
+    });
+
+    it.only('Toggle window covering in test zone', async () => {
+      const id = process.env.FLEXOM_TEST_ZONE!;
+      const factor = 'BRIEXT';
+      const flexom = await Flexom.createClient({ email: process.env.FLEXOM_EMAIL!, password: process.env.FLEXOM_PASSWORD! });
+      await setFactorAndWaitForChange({ flexom, id, factor, value: 0 });
+      await setFactorAndWaitForChange({ flexom, id, factor, value: 1 });
+    });
+  });
+
 });
+
+async function setFactorAndWaitForChange({
+  flexom,
+  id,
+  factor,
+  value,
+}: {
+  flexom: Flexom.Client
+  } & Parameters<Flexom.Client['setZoneFactor']>[0],
+) {
+  console.log(`set ${factor} to ${value}`);
+  await flexom.setZoneFactor({ id, factor, value });
+  let currentValue: number | undefined = undefined;
+  while (currentValue !== value) {
+    await new Promise(resolve => setTimeout(resolve, 3000));
+    const { settings } = await flexom.getZone({ id });
+    currentValue = settings[factor].value;
+    console.log(`${factor} = ${currentValue} (expecting ${value})`);
+  }
+}

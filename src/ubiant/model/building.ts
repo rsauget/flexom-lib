@@ -1,17 +1,19 @@
-export interface Building {
-    address: {
-      address: string;
-      c: string;
-      city: string;
-      county: string;
-      formatted_address: string;
-      id: string;
-      latitude: number;
-      longitude: number;
-      p: string;
-      region: string;
-      street_name: string;
-    };
+type Address = {
+  address: string;
+  c: string;
+  city: string;
+  county: string;
+  formatted_address: string;
+  id: string;
+  latitude: number;
+  longitude: number;
+  p: string;
+  region: string;
+  street_name: string;
+};
+
+export type Building = {
+    address: Address;
     auth_activated: boolean;
     auth_hemis_level: string;
     auth_transfer: boolean;

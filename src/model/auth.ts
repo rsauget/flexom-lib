@@ -1,6 +1,6 @@
 import { Device } from '../ubiant/model/device';
 
-export interface Auth {
+export type Auth = {
   device: Device;
   ubiant: {
     token: string;

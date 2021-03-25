@@ -1,82 +1,76 @@
-import { User } from './model/user';
-import { Zone, Factor, Settings, MASTER_ZONE_ID } from './model/zone';
-import { HttpClient } from 'typed-rest-client/HttpClient';
-import { IHeaders } from 'typed-rest-client/Interfaces';
+import _ from 'lodash';
+import axios from 'axios';
 import urlencode from 'form-urlencoded';
-import { queue } from '../queue';
+import { User } from './model/user';
+import { Zone, Factor, MASTER_ZONE_ID } from './model/zone';
 import { Thing } from './model/thing';
 
-export class Hemis {
-  private url: string;
-  private client: HttpClient;
-  private userid: string;
-  private deviceid: string;
-  private token?: string;
+export type HemisService = {
+  login: (_: {
+    email: string,
+    token: string,
+    kernelId: string,
+  }) => Promise<User>,
+  getZones: () => Promise<Zone[]>,
+  getZone: (_: { id: string }) => Promise<Zone>,
+  setZoneFactor: (_: { id: string, factor: Factor, value: number }) => Promise<void>,
+  getThings: () => Promise<Thing[]>,
+}
 
-  private get headers(): IHeaders {
-    return {
+export function createHemisService({
+  url,
+  userid,
+  deviceid,
+}: {
+  url: string,
+  userid: string,
+  deviceid: string
+  }): HemisService {
+  let token: string;
+
+  const client = axios.create({
+    baseURL: url,
+    headers: {
       'X-Client-Version': '1.10.62',
-      'X-Logged-User': this.userid,
-      'X-Client-Id': this.deviceid,
+      'X-Logged-User': userid,
+      'X-Client-Id': deviceid,
       'X-Application-Id': 'com.ubiant.flexom',
       'X-Brand-Id': 'Flexom',
       'Content-Type': 'application/x-www-form-urlencoded',
       TE: 'identity',
-      ...(this.token && { Authorization: `Bearer ${this.token}`}),
-    };
-  }
-
-  public constructor(
-    url: string,
-    userid: string,
-    deviceid: string,
-    token?: string,
-  ) {
-    this.userid = userid;
-    this.deviceid = deviceid;
-    this.url = url;
-    this.token = token;
-    this.client = new HttpClient('BestHTTP');
-  }
-
-  public async login(
-    email: string,
-    token: string,
-    kernelId: string,
-  ): Promise<User | null> {
-    try {
-      const response = await this.client.post(
-        `${this.url}/WS_UserManagement/login`,
-        urlencode({
-          email: email,
-          password: token,
-          kernelId: kernelId,
-        }),
-        this.headers,
-      );
-      if (response.message.statusCode === 200) {
-        const user = JSON.parse(await response.readBody());
-        this.token = user.token;
-        return user;
-      } else {
-        return null;
+      'User-Agent': 'BestHTTP',
+    },
+    transformRequest: [(data, headers) => {
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
       }
-    } catch (error) {
-      return null;
-    }
-  }
+      return urlencode(data);
+    }], 
+  });
 
-  public async getZones(): Promise<Zone[]> {
-    const response = await this.client.get(
-      `${this.url}/WS_ZoneManagement/list`,
-      this.headers,
+  const login: HemisService['login'] = async ({
+    email,
+    token: password,
+    kernelId,
+  }) => {
+    const { data: user } = await client.post<User>(
+      '/WS_UserManagement/login',
+      {
+        email,
+        password,
+        kernelId,
+      },
     );
-    if (response.message.statusCode === 401) {
-      throw new Error('Unauthorized');
-    }
-    const zones = JSON.parse(await response.readBody());
+    token = user.token;
+    return user;
+  };
+
+  const getZones: HemisService['getZones'] = async () => {
+    const { data: zones } = await client.get<Zone[]>(
+      '/WS_ZoneManagement/list',
+    );
     return zones.map((zone: Zone) => {
-      if (zone.id === 'MyHemis') {
+      if (zone.id === MASTER_ZONE_ID) {
         return {
           ...zone,
           name: 'Ma Maison',
@@ -85,70 +79,64 @@ export class Hemis {
         return zone;
       }
     });
-  }
+  };
 
-  public getZone = queue.wrap(
-    async (id: string): Promise<Zone> => {
-      const response = await this.client.get(
-        `${this.url}/WS_ReactiveEnvironmentDataManagement/${id}/settings`,
-        this.headers,
-      );
-      const zone = {
-        id,
-        name: id,
-        settings: JSON.parse(await response.readBody()),
-      };
-      return zone;
-    },
-  );
-
-  public async getThings() : Promise<Thing[]>{
-    const response = await this.client.get(
-      `${this.url}/intelligent-things/listV2`,
-      this.headers,
+  const getZone: HemisService['getZone'] = async ({ id }) => {
+    const { data: settings } = await client.get<Zone['settings']>(
+      `/WS_ReactiveEnvironmentDataManagement/${id}/settings`,
     );
-    const things = JSON.parse(await response.readBody());
+    return {
+      id,
+      name: id,
+      settings,
+    };
+  };
+
+  const getThings = async () => {
+    const { data: things } = await client.get<Thing[]>(
+      '/intelligent-things/listV2',
+    );
     return things;
-  }
+  };
 
-  public async setZoneFactor(id: string, factor: Factor, value: number) {
-    await this.client.put(
-      `${this.url}/WS_ReactiveEnvironmentDataManagement/${id}/settings/${factor}/value`,
-      urlencode({ value }),
-      this.headers,
-    );
-    await this.client.put(
-      `${this.url}/WS_SystemManagement/event/${id}`,
-      urlencode({ event: `${factor}_AUTO` }),
-      this.headers,
-    );
-  }
+  const setZoneFactor: HemisService['setZoneFactor'] =
+    async ({ id, factor, value }) => {
+      const zoneIdsToUpdate = await unwindZone({ id });
+      await Promise.all(
+        _.chain(zoneIdsToUpdate)
+          .map(async id => {
+            await client.put<void>(
+              `/WS_ReactiveEnvironmentDataManagement/${id}/settings/${factor}/value`,
+              { value },
+            );
+            await client.post<void>(
+              `/WS_SystemManagement/event/${id}`,
+              { event: `${factor}_AUTO` },
+            );
+          })
+          .value());
+    };
 
-  public updateZone = queue.wrap(async (zone: Zone) => {
-    await Promise.all(
-      Object.entries(zone.settings).map(async (entry) => {
-        const [factor, data] = entry as [Factor, Settings];
-        if (!data) {
-          return;
-        }
-        if (zone.id === MASTER_ZONE_ID) {
-          const zones = await this.getZones();
-          if (!zones) {
-            return;
-          }
-          await Promise.all(
-            zones
-              .filter((zone) => zone.id !== MASTER_ZONE_ID)
-              .map(async (zone) => {
-                zone.settings = { [factor]: data };
-                await this.updateZone(zone);
-              }),
-          );
-        } else {
-          this.setZoneFactor(zone.id, factor, data.value);
-        }
-      }),
-    );
-    return await this.getZone(zone.id);
-  });
+  const unwindZone = async ({ id }: Pick<Zone, 'id'>) => {
+    if (id === MASTER_ZONE_ID) {
+      const zones = await getZones();
+      return _.chain(zones)
+        .reject({ id: MASTER_ZONE_ID })
+        .map('id')
+        .value();
+    }
+    return [id];
+  };
+
+  return {
+    login,
+    getZones,
+    getZone,
+    setZoneFactor,
+    getThings,
+  };
 }
+  
+
+
+

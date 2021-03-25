@@ -1,6 +1,6 @@
 type Role = 'OWNER';
 
-export interface User {
+export type User = {
   hemisVersion: string;
   offset: number;
   permissions: string[];
