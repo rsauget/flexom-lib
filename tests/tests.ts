@@ -38,7 +38,7 @@ describe('Integration with Flexom APIs', () => {
     });
   });
 
-  describe('Commands', () => {
+  describe.skip('Commands', () => {
     it('Toggle light in test zone', async () => {
       const id = process.env.FLEXOM_TEST_ZONE!;
       const factor = 'BRI';
@@ -47,12 +47,20 @@ describe('Integration with Flexom APIs', () => {
       await setFactorAndWaitForChange({ flexom, id, factor, value: 0 });
     });
 
-    it.only('Toggle window covering in test zone', async () => {
+    it('Toggle window covering in test zone', async () => {
       const id = process.env.FLEXOM_TEST_ZONE!;
       const factor = 'BRIEXT';
       const flexom = await Flexom.createClient({ email: process.env.FLEXOM_EMAIL!, password: process.env.FLEXOM_PASSWORD! });
       await setFactorAndWaitForChange({ flexom, id, factor, value: 0 });
       await setFactorAndWaitForChange({ flexom, id, factor, value: 1 });
+    });
+  });
+
+  describe.skip('Misc', () => {
+    it('Get things', async () => {
+      const flexom = await Flexom.createClient({ email: process.env.FLEXOM_EMAIL!, password: process.env.FLEXOM_PASSWORD! });
+      const things = await flexom.getThings();
+      console.log(JSON.stringify(things, null, 2));
     });
   });
 
@@ -71,9 +79,13 @@ async function setFactorAndWaitForChange({
   await flexom.setZoneFactor({ id, factor, value });
   let currentValue: number | undefined = undefined;
   while (currentValue !== value) {
-    await new Promise(resolve => setTimeout(resolve, 3000));
+    await sleep(3000);
     const { settings } = await flexom.getZone({ id });
     currentValue = settings[factor].value;
     console.log(`${factor} = ${currentValue} (expecting ${value})`);
   }
+}
+
+async function sleep(delay: number) {
+  return new Promise(resolve => setTimeout(resolve, delay));
 }

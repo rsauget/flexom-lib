@@ -1,15 +1,18 @@
 {
   "name": "@rsauget/flexom-lib",
-  "version": "2.0.3",
+  "version": "2.0.4",
   "description": "Library to interact with Flexom servers",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
     "lint": "eslint .",
     "build": "npm run lint && tsc && npm link",
-    "watch": "nodemon --watch \"src\" --ext ts --exec \"npm run build\"",
     "test": "mocha",
+    "test:watch": "mocha --watch",
     "prepublishOnly": "npm run lint && npm run build"
+  },
+  "bin": {
+    "flexom": "bin/flexom.js"
   },
   "author": {
     "name": "Raphaël Sauget"
@@ -36,6 +39,7 @@
     "axios": "^0.21.1",
     "bottleneck": "^2.19.5",
     "form-urlencoded": "^4.2.1",
+    "inquirer": "^8.0.0",
     "jsonwebtoken": "^8.5.1",
     "lodash": "^4.17.21",
     "moment": "^2.29.1"
