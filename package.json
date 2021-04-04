@@ -2,6 +2,7 @@
   "name": "@rsauget/flexom-lib",
   "version": "2.0.4",
   "description": "Library to interact with Flexom servers",
+  "license": "Apache-2.0",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
@@ -17,7 +18,6 @@
   "author": {
     "name": "Raphaël Sauget"
   },
-  "license": "ISC",
   "devDependencies": {
     "@types/chai": "^4.2.15",
     "@types/form-urlencoded": "^2.0.1",
@@ -32,6 +32,7 @@
     "eslint": "^7.22.0",
     "mocha": "^8.3.2",
     "nodemon": "^2.0.7",
+    "release-it": "^14.5.1",
     "ts-node": "^9.1.1",
     "typescript": "^4.2.3"
   },

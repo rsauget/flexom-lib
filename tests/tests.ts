@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 import * as Flexom from '../src';
 import { describe, it } from 'mocha';
 import { expect } from 'chai';
