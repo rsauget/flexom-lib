@@ -109,10 +109,10 @@ export function createHemisService({
               `/WS_ReactiveEnvironmentDataManagement/${id}/settings/${factor}/value`,
               { value },
             );
-            await client.post<void>(
-              `/WS_SystemManagement/event/${id}`,
-              { event: `${factor}_AUTO` },
-            );
+            // await client.post<void>(
+            //   `/WS_SystemManagement/event/${id}`,
+            //   { event: `${factor}_AUTO` },
+            // );
           })
           .value());
     };
