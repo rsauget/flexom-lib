@@ -1,6 +1,17 @@
 import _ from 'lodash';
 import * as StompJs from '@stomp/stompjs';
-import { HemisListener } from './model/event';
+import { HemisListener, EventType } from './model/event';
+import { FlexomLibError } from '../error';
+
+export type WsClient = {
+  addListener: <T extends EventType[] | undefined>(
+    listener: HemisListener<T>
+  ) => void;
+  removeListener: (
+    listener: Pick<HemisListener, 'id'> & Partial<HemisListener>
+  ) => void;
+  disconnect: () => Promise<void>;
+};
 
 export async function createWsClient({
   wsUrl,
@@ -10,11 +21,7 @@ export async function createWsClient({
   wsUrl: string;
   buildingId: string;
   token: string;
-}): Promise<{
-  addListener: (args: { id: string; listener: HemisListener }) => void;
-  removeListener: (args: { id: string }) => void;
-  disconnect: () => Promise<void>;
-}> {
+}): Promise<WsClient> {
   const client = new StompJs.Client({
     brokerURL: wsUrl,
     connectHeaders: {
@@ -32,7 +39,15 @@ export async function createWsClient({
     client.subscribe(`jms.topic.${buildingId}.data`, async (message) => {
       try {
         const data = JSON.parse(message.body);
-        await Promise.all(_.map(listeners, (listener) => listener(data)));
+        console.log(data);
+        await Promise.all(
+          _.chain(listeners)
+            .filter(
+              ({ events }) => _.isEmpty(events) || _.includes(events, data.type)
+            )
+            .map(async ({ listener }) => listener(data))
+            .value()
+        );
       } catch (err) {
         console.log('Message error: ', err);
       }
@@ -46,27 +61,26 @@ export async function createWsClient({
 
   client.activate();
 
-  const addListener = ({
-    id,
-    listener,
-  }: {
-    id: string;
-    listener: HemisListener;
-  }) => {
+  const addListener: WsClient['addListener'] = (listener) => {
+    const { id } = listener;
     if (listeners[id]) {
-      if (listeners[id] === listener) {
+      if (_.isEqual(listeners[id], listener)) {
         return;
       }
-      throw new Error(`different listener registered for id ${id}`);
+      throw new FlexomLibError(`different listener registered for id ${id}`);
     }
     listeners[id] = listener;
   };
 
-  const removeListener = ({ id }: { id: string }) => {
+  const removeListener: WsClient['removeListener'] = ({
+    id,
+  }: {
+    id: string;
+  }) => {
     delete listeners[id];
   };
 
-  const disconnect = async () => {
+  const disconnect: WsClient['disconnect'] = async () => {
     await client.deactivate();
   };
 

@@ -20,12 +20,6 @@ interface FlexomTestData {
   };
 }
 
-async function sleep(delay: number) {
-  return new Promise((resolve) => {
-    setTimeout(resolve, delay);
-  });
-}
-
 describe('Integration with Flexom APIs', () => {
   describe.skip('Login', () => {
     it('correct credentials', async () => {
@@ -63,35 +57,21 @@ describe('Integration with Flexom APIs', () => {
         password: process.env.FLEXOM_PASSWORD!,
       });
 
-      let currentValue: number | undefined;
-      await flexom.subscribe({
-        id: 'test',
-        listener: (data) => {
-          console.log(JSON.stringify(data, null, 2));
-          if (
-            data.type === 'ACTUATOR_HARDWARE_STATE' &&
-            data.zoneId === id &&
-            data.factorId === factor
-          ) {
-            currentValue = data.value.value;
-          }
-        },
+      const settings = await flexom.getZoneSettings({ id });
+      await flexom.setZoneFactor({
+        id,
+        factor,
+        value: settings.BRI.value === 1 ? 0 : 1,
       });
-      await flexom.setZoneFactor({ id, factor, value: 1 });
-      while (currentValue !== 1) {
-        await sleep(3000);
-      }
-
-      currentValue = undefined;
-      await flexom.setZoneFactor({ id, factor, value: 0 });
-      while (currentValue !== 0) {
-        await sleep(3000);
-      }
-
+      await flexom.setZoneFactor({
+        id,
+        factor,
+        value: settings.BRI.value,
+      });
       await flexom.disconnect();
     });
 
-    it.only('Toggle window covering in test zone', async () => {
+    it('Toggle window covering in test zone', async () => {
       const id = process.env.FLEXOM_TEST_ZONE!;
       const factor = 'BRIEXT';
       const flexom = await Flexom.createClient({
@@ -99,31 +79,13 @@ describe('Integration with Flexom APIs', () => {
         password: process.env.FLEXOM_PASSWORD!,
       });
 
-      let currentValue: number | undefined;
-      await flexom.subscribe({
-        id: 'test',
-        listener: (data) => {
-          console.log(JSON.stringify(data, null, 2));
-          if (
-            data.type === 'ACTUATOR_HARDWARE_STATE' &&
-            data.zoneId === id &&
-            data.factorId === factor
-          ) {
-            currentValue = data.value.value;
-          }
-        },
+      const settings = await flexom.getZoneSettings({ id });
+      await flexom.setZoneFactor({
+        id,
+        factor,
+        value: settings.BRIEXT.value === 1 ? 0 : 1,
       });
-      await flexom.setZoneFactor({ id, factor, value: 0 });
-      while (currentValue !== 0) {
-        await sleep(3000);
-      }
-
-      currentValue = undefined;
-      await flexom.setZoneFactor({ id, factor, value: 1 });
-      while (currentValue !== 1) {
-        await sleep(3000);
-      }
-
+      await flexom.setZoneFactor({ id, factor, value: settings.BRI.value });
       await flexom.disconnect();
     });
   });

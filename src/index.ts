@@ -1,5 +1,6 @@
 import _ from 'lodash';
 import WebSocket from 'ws';
+import { FlexomLibError } from './error';
 import { createHemisService, HemisService } from './hemis/hemis';
 import { Thing } from './hemis/model/thing';
 import { Factor, Zone } from './hemis/model/zone';
@@ -15,10 +16,6 @@ type Client = Omit<HemisService, 'login' | 'logout'> & {
 
 export { Thing, Zone, Factor, Client, createClient };
 
-function throwError(msg: string): never {
-  throw new Error(`[flexom-lib] ERROR: ${msg}`);
-}
-
 async function login({
   email,
   password,
@@ -30,7 +27,7 @@ async function login({
   const ubiantUser = await ubiant.login({ email, password });
   const buildings = await ubiant.getBuildings();
   if (_.isEmpty(buildings)) {
-    return throwError('No building found');
+    throw new FlexomLibError('No building found');
   }
   // TODO: handle multiple buildings
   const building = _.first(buildings)!;

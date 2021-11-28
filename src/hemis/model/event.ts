@@ -1,6 +1,6 @@
 import { Factor } from './zone';
 
-type EventType =
+export type EventType =
   | 'ACTUATOR_TARGET_STATE'
   | 'ACTUATOR_HARDWARE_STATE'
   | 'ACTUATOR_CURRENT_STATE'
@@ -24,7 +24,7 @@ type EventBase = {
   value?: unknown;
 };
 
-type ActuatorHardwareStateEvent = EventBase & {
+export type ActuatorHardwareStateEvent = EventBase & {
   type: 'ACTUATOR_HARDWARE_STATE';
   timestamp: number;
   value: {
@@ -37,6 +37,16 @@ type OtherEvent = EventBase & {
   type: Exclude<EventType, 'ACTUATOR_HARDWARE_STATE'>;
 };
 
-type Event = ActuatorHardwareStateEvent | OtherEvent;
+export type HemisEvent = ActuatorHardwareStateEvent | OtherEvent;
 
-export type HemisListener = (data: Event) => void;
+export type HemisListener<
+  T extends EventType[] | undefined = EventType[] | undefined
+> = {
+  id: string;
+  events?: T;
+  listener: (
+    data: T extends 'ACTUATOR_HARDWARE_STATE'[]
+      ? ActuatorHardwareStateEvent
+      : HemisEvent
+  ) => void;
+};

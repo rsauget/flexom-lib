@@ -1,11 +1,14 @@
-import _ from 'lodash';
 import axios from 'axios';
 import urlencode from 'form-urlencoded';
+import { v4 as uuidv4 } from 'uuid';
 import { User } from './model/user';
 import { Zone, Factor, MASTER_ZONE_ID } from './model/zone';
 import { Thing } from './model/thing';
 import { HemisListener } from './model/event';
-import { createWsClient } from './ws';
+import { createWsClient, WsClient } from './ws';
+import { FlexomLibError } from '../error';
+
+const ZONE_FACTOR_WAIT_TIMEOUT = 60000;
 
 export type HemisService = {
   login: (_: {
@@ -19,10 +22,13 @@ export type HemisService = {
     id: string;
     factor: Factor;
     value: number;
+    wait?: boolean;
   }) => Promise<void>;
   getThings: () => Promise<Thing[]>;
-  subscribe: (_: { id: string; listener: HemisListener }) => Promise<void>;
-  unsubscribe: (_: { id: string }) => Promise<void>;
+  subscribe: (listener: HemisListener) => Promise<void>;
+  unsubscribe: (
+    listener: Pick<HemisListener, 'id'> & Partial<HemisListener>
+  ) => Promise<void>;
   logout: () => Promise<void>;
 };
 
@@ -56,11 +62,15 @@ export function createHemisService({
     ],
   });
 
-  let wsClient: {
-    addListener: (_: { id: string; listener: HemisListener }) => void;
-    removeListener: (_: { id: string }) => void;
-    disconnect: () => void;
-  };
+  const getWsClient: () => Promise<WsClient> = (() => {
+    let wsClient: WsClient;
+    return async () => {
+      if (wsClient) return wsClient;
+      if (!token) throw new FlexomLibError('Not logged in');
+      wsClient = await createWsClient({ wsUrl, buildingId, token });
+      return wsClient;
+    };
+  })();
 
   const login: HemisService['login'] = async ({
     email,
@@ -78,13 +88,15 @@ export function createHemisService({
 
   const logout: HemisService['logout'] = async () => {
     token = undefined;
-    wsClient?.disconnect();
+    const wsClient = await getWsClient();
+    if (!wsClient) return;
+    wsClient.disconnect();
   };
 
   const getZones: HemisService['getZones'] = async () => {
     const { data: zones } = await client.get<Zone[]>('/WS_ZoneManagement/list');
     return zones.map((zone: Zone) =>
-      zone.id === MASTER_ZONE_ID ? { ...zone, name: 'Ma Maison' } : zone
+      zone.zoneId === MASTER_ZONE_ID ? { ...zone, name: 'Ma Maison' } : zone
     );
   };
 
@@ -102,49 +114,50 @@ export function createHemisService({
     return things;
   };
 
-  const unwindZone = async ({ id }: Pick<Zone, 'id'>) => {
-    if (id !== MASTER_ZONE_ID) {
-      return [id];
-    }
-
-    const zones = await getZones();
-    return _.chain(zones).reject({ id: MASTER_ZONE_ID }).map('id').value();
-  };
-
   const setZoneFactor: HemisService['setZoneFactor'] = async ({
-    id,
+    id: zoneId,
     factor,
     value,
+    wait = true,
   }) => {
-    const zoneIdsToUpdate = await unwindZone({ id });
-    await Promise.all(
-      _.map(zoneIdsToUpdate, async (zoneId) => {
-        await client.put<void>(
-          `/WS_ReactiveEnvironmentDataManagement/${zoneId}/settings/${factor}/value`,
-          { value }
-        );
-      })
+    const wsClient = await getWsClient();
+    const id = uuidv4();
+    const promise = new Promise<void>((resolve, reject) => {
+      if (!wait) resolve();
+
+      const timeoutId = setTimeout(() => {
+        wsClient.removeListener({ id });
+        reject(new FlexomLibError('Timed out waiting for zone factor update'));
+      }, ZONE_FACTOR_WAIT_TIMEOUT);
+
+      wsClient.addListener({
+        id,
+        events: ['ACTUATOR_HARDWARE_STATE'],
+        listener: (data) => {
+          if (data.factorId !== factor) return;
+          if (data.value.value !== value) return;
+          clearTimeout(timeoutId);
+          resolve();
+        },
+      });
+    });
+
+    await client.put<void>(
+      `/WS_ReactiveEnvironmentDataManagement/${zoneId}/settings/${factor}/value`,
+      { value }
     );
+
+    return promise;
   };
 
-  const subscribe = async ({
-    id,
-    listener,
-  }: {
-    id: string;
-    listener: HemisListener;
-  }) => {
-    if (!wsClient) {
-      if (!token) {
-        throw new Error('Not logged in');
-      }
-      wsClient = await createWsClient({ wsUrl, buildingId, token });
-    }
-    wsClient.addListener({ id, listener });
+  const subscribe: HemisService['subscribe'] = async (listener) => {
+    const wsClient = await getWsClient();
+    wsClient.addListener(listener);
   };
 
-  const unsubscribe = async ({ id }: { id: string }) => {
-    wsClient.removeListener({ id });
+  const unsubscribe: HemisService['unsubscribe'] = async (listener) => {
+    const wsClient = await getWsClient();
+    wsClient.removeListener(listener);
   };
 
   return {

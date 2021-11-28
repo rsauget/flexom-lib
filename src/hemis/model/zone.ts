@@ -19,7 +19,7 @@ export type Settings = {
 };
 
 export type Zone = {
-  id: string;
+  zoneId: string;
   name: string;
   parentId?: string | null;
   surface?: string;
