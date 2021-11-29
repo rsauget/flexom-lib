@@ -25,6 +25,7 @@ export type HemisService = {
     factor: Factor;
     value: number;
     wait?: boolean;
+    tolerance?: number;
   }) => Promise<void>;
   getThings: () => Promise<Thing[]>;
   subscribe: (listener: HemisListener) => Promise<void>;
@@ -123,6 +124,7 @@ export function createHemisService({
     factor,
     value,
     wait = true,
+    tolerance = ZONE_FACTOR_TOLERANCE,
   }) => {
     const id = uuidv4();
     const wsClient = await getWsClient();
@@ -132,9 +134,7 @@ export function createHemisService({
       const timeoutId = setTimeout(async () => {
         try {
           const settings = await getZoneSettings({ id: zoneId });
-          if (
-            Math.abs(settings[factor].value - value) < ZONE_FACTOR_TOLERANCE
-          ) {
+          if (Math.abs(settings[factor].value - value) < tolerance) {
             resolve();
           } else {
             reject(
@@ -152,8 +152,7 @@ export function createHemisService({
         events: ['ACTUATOR_HARDWARE_STATE'],
         listener: (data) => {
           if (data.factorId !== factor) return;
-          if (Math.abs(data.value.value - value) > ZONE_FACTOR_TOLERANCE)
-            return;
+          if (Math.abs(data.value.value - value) > tolerance) return;
           try {
             clearTimeout(timeoutId);
             wsClient.removeListener({ id });
