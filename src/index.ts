@@ -62,7 +62,7 @@ async function createClient({
 }: {
   email: string;
   password: string;
-  logger: pino.BaseLogger;
+  logger?: pino.BaseLogger;
 }): Promise<Client> {
   let auth = await login({ email, password, logger });
 
