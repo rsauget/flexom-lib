@@ -1,6 +1,7 @@
 import axios from 'axios';
 import urlencode from 'form-urlencoded';
 import { v4 as uuidv4 } from 'uuid';
+import { pino } from 'pino';
 import { User } from './model/user';
 import { Zone, Factor, MASTER_ZONE_ID } from './model/zone';
 import { Thing } from './model/thing';
@@ -9,6 +10,7 @@ import { createWsClient, WsClient } from './ws';
 import { FlexomLibError } from '../error';
 
 const ZONE_FACTOR_WAIT_TIMEOUT = 60000;
+const ZONE_FACTOR_TOLERANCE = 0.02;
 
 export type HemisService = {
   login: (_: {
@@ -37,11 +39,13 @@ export function createHemisService({
   wsUrl,
   userId,
   buildingId,
+  logger,
 }: {
   baseUrl: string;
   wsUrl: string;
   userId: string;
   buildingId: string;
+  logger: pino.BaseLogger;
 }): HemisService {
   let token: string | undefined;
 
@@ -67,7 +71,7 @@ export function createHemisService({
     return async () => {
       if (wsClient) return wsClient;
       if (!token) throw new FlexomLibError('Not logged in');
-      wsClient = await createWsClient({ wsUrl, buildingId, token });
+      wsClient = await createWsClient({ wsUrl, buildingId, token, logger });
       return wsClient;
     };
   })();
@@ -120,14 +124,27 @@ export function createHemisService({
     value,
     wait = true,
   }) => {
-    const wsClient = await getWsClient();
     const id = uuidv4();
+    const wsClient = await getWsClient();
     const promise = new Promise<void>((resolve, reject) => {
       if (!wait) resolve();
 
-      const timeoutId = setTimeout(() => {
-        wsClient.removeListener({ id });
-        reject(new FlexomLibError('Timed out waiting for zone factor update'));
+      const timeoutId = setTimeout(async () => {
+        try {
+          const settings = await getZoneSettings({ id: zoneId });
+          if (
+            Math.abs(settings[factor].value - value) < ZONE_FACTOR_TOLERANCE
+          ) {
+            resolve();
+          } else {
+            reject(
+              new FlexomLibError('Timed out waiting for zone factor update')
+            );
+          }
+          wsClient.removeListener({ id });
+        } catch (err) {
+          reject(err);
+        }
       }, ZONE_FACTOR_WAIT_TIMEOUT);
 
       wsClient.addListener({
@@ -135,9 +152,16 @@ export function createHemisService({
         events: ['ACTUATOR_HARDWARE_STATE'],
         listener: (data) => {
           if (data.factorId !== factor) return;
-          if (data.value.value !== value) return;
-          clearTimeout(timeoutId);
-          resolve();
+          if (Math.abs(data.value.value - value) > ZONE_FACTOR_TOLERANCE)
+            return;
+          try {
+            clearTimeout(timeoutId);
+            wsClient.removeListener({ id });
+          } catch (err) {
+            logger.warn({ err }, 'error cleaning up listener');
+          } finally {
+            resolve();
+          }
         },
       });
     });

@@ -1,0 +1,17 @@
+{
+  "root": true,
+  "extends": "../.eslintrc",
+  "parserOptions": {
+    "project": "./tsconfig.json"
+  },
+  "ignorePatterns": [],
+  "rules": {
+    "@typescript-eslint/no-unused-expressions": "off",
+    "import/no-extraneous-dependencies": [
+      "error",
+      {
+        "devDependencies": true
+      }
+    ]
+  }
+}

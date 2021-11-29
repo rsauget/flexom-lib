@@ -1,6 +1,3 @@
-/* eslint-disable no-await-in-loop */
-/* eslint-disable @typescript-eslint/no-unused-expressions */
-/* eslint-disable no-console */
 import { describe, it } from 'mocha';
 import { expect } from 'chai';
 import * as Flexom from '../src';
@@ -85,7 +82,7 @@ describe('Integration with Flexom APIs', () => {
         factor,
         value: settings.BRIEXT.value === 1 ? 0 : 1,
       });
-      await flexom.setZoneFactor({ id, factor, value: settings.BRI.value });
+      await flexom.setZoneFactor({ id, factor, value: settings.BRIEXT.value });
       await flexom.disconnect();
     });
   });

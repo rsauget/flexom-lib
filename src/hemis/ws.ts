@@ -1,5 +1,6 @@
 import _ from 'lodash';
 import * as StompJs from '@stomp/stompjs';
+import pino from 'pino';
 import { HemisListener, EventType } from './model/event';
 import { FlexomLibError } from '../error';
 
@@ -17,10 +18,12 @@ export async function createWsClient({
   wsUrl,
   buildingId,
   token,
+  logger,
 }: {
   wsUrl: string;
   buildingId: string;
   token: string;
+  logger: pino.BaseLogger;
 }): Promise<WsClient> {
   const client = new StompJs.Client({
     brokerURL: wsUrl,
@@ -39,7 +42,7 @@ export async function createWsClient({
     client.subscribe(`jms.topic.${buildingId}.data`, async (message) => {
       try {
         const data = JSON.parse(message.body);
-        console.log(data);
+        logger.debug({ data }, 'event received');
         await Promise.all(
           _.chain(listeners)
             .filter(
@@ -49,14 +52,16 @@ export async function createWsClient({
             .value()
         );
       } catch (err) {
-        console.log('Message error: ', err);
+        logger.error({ err }, 'listener error');
       }
     });
   };
 
   client.onStompError = (frame) => {
-    console.log('Broker reported error: ', frame.headers.message);
-    console.log('Additional details: ', frame.body);
+    logger.error(
+      { frame, message: frame?.headers?.message, body: frame?.body },
+      'Broker reported error: '
+    );
   };
 
   client.activate();

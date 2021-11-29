@@ -1,4 +1,5 @@
 import _ from 'lodash';
+import createLogger, { pino } from 'pino';
 import WebSocket from 'ws';
 import { FlexomLibError } from './error';
 import { createHemisService, HemisService } from './hemis/hemis';
@@ -19,9 +20,11 @@ export { Thing, Zone, Factor, Client, createClient };
 async function login({
   email,
   password,
+  logger,
 }: {
   email: string;
   password: string;
+  logger: pino.BaseLogger;
 }): Promise<Auth> {
   const ubiant = createUbiantService();
   const ubiantUser = await ubiant.login({ email, password });
@@ -36,6 +39,7 @@ async function login({
     wsUrl: building.hemis_stomp_url,
     userId: ubiantUser.id,
     buildingId: building.buildingId,
+    logger,
   });
   const hemisUser = await hemis.login({
     email: ubiantUser.email,
@@ -54,18 +58,20 @@ async function login({
 async function createClient({
   email,
   password,
+  logger = createLogger(),
 }: {
   email: string;
   password: string;
+  logger: pino.BaseLogger;
 }): Promise<Client> {
-  let auth = await login({ email, password });
+  let auth = await login({ email, password, logger });
 
   function withAuth<T extends unknown[], U>(
     fn: (auth: Auth) => (...args: T) => Promise<U>
   ) {
     return async (...args: T) => {
       if (!auth?.ubiant?.isTokenValid()) {
-        auth = await login({ email, password });
+        auth = await login({ email, password, logger });
       }
       return fn(auth)(...args);
     };
