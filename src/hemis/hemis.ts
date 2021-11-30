@@ -101,7 +101,7 @@ export function createHemisService({
   const getZones: HemisService['getZones'] = async () => {
     const { data: zones } = await client.get<Zone[]>('/WS_ZoneManagement/list');
     return zones.map((zone: Zone) =>
-      zone.zoneId === MASTER_ZONE_ID ? { ...zone, name: 'Ma Maison' } : zone
+      zone.id === MASTER_ZONE_ID ? { ...zone, name: 'Ma Maison' } : zone
     );
   };
 
@@ -120,20 +120,20 @@ export function createHemisService({
   };
 
   const setZoneFactor: HemisService['setZoneFactor'] = async ({
-    id: zoneId,
+    id,
     factor,
     value,
     wait = true,
     tolerance = ZONE_FACTOR_TOLERANCE,
   }) => {
-    const id = uuidv4();
+    const listenerId = uuidv4();
     const wsClient = await getWsClient();
     const promise = new Promise<void>((resolve, reject) => {
       if (!wait) resolve();
 
       const timeoutId = setTimeout(async () => {
         try {
-          const settings = await getZoneSettings({ id: zoneId });
+          const settings = await getZoneSettings({ id });
           if (Math.abs(settings[factor].value - value) < tolerance) {
             resolve();
           } else {
@@ -141,21 +141,21 @@ export function createHemisService({
               new FlexomLibError('Timed out waiting for zone factor update')
             );
           }
-          wsClient.removeListener({ id });
+          wsClient.removeListener({ id: listenerId });
         } catch (err) {
           reject(err);
         }
       }, ZONE_FACTOR_WAIT_TIMEOUT);
 
       wsClient.addListener({
-        id,
+        id: listenerId,
         events: ['ACTUATOR_HARDWARE_STATE'],
         listener: (data) => {
           if (data.factorId !== factor) return;
           if (Math.abs(data.value.value - value) > tolerance) return;
           try {
             clearTimeout(timeoutId);
-            wsClient.removeListener({ id });
+            wsClient.removeListener({ id: listenerId });
           } catch (err) {
             logger.warn({ err }, 'error cleaning up listener');
           } finally {
@@ -166,7 +166,7 @@ export function createHemisService({
     });
 
     await client.put<void>(
-      `/WS_ReactiveEnvironmentDataManagement/${zoneId}/settings/${factor}/value`,
+      `/WS_ReactiveEnvironmentDataManagement/${id}/settings/${factor}/value`,
       { value }
     );
 
