@@ -1,8 +1,8 @@
 import _ from 'lodash';
 import * as StompJs from '@stomp/stompjs';
-import pino from 'pino';
 import { HemisListener, EventType } from './model/event';
 import { FlexomLibError } from '../error';
+import { Logger } from '../logger';
 
 export type WsClient = {
   addListener: <T extends EventType[] | undefined>(
@@ -23,7 +23,7 @@ export async function createWsClient({
   wsUrl: string;
   buildingId: string;
   token: string;
-  logger: pino.Logger;
+  logger: Logger;
 }): Promise<WsClient> {
   const client = new StompJs.Client({
     brokerURL: wsUrl,

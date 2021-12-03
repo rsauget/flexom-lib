@@ -1,13 +1,13 @@
 import axios from 'axios';
 import urlencode from 'form-urlencoded';
 import { v4 as uuidv4 } from 'uuid';
-import { pino } from 'pino';
 import { User } from './model/user';
 import { Zone, Factor, MASTER_ZONE_ID } from './model/zone';
 import { Thing } from './model/thing';
 import { HemisListener } from './model/event';
 import { createWsClient, WsClient } from './ws';
 import { FlexomLibError } from '../error';
+import { Logger } from '../logger';
 
 const ZONE_FACTOR_WAIT_TIMEOUT = 60000;
 const ZONE_FACTOR_TOLERANCE = 0.02;
@@ -46,7 +46,7 @@ export function createHemisService({
   wsUrl: string;
   userId: string;
   buildingId: string;
-  logger: pino.Logger;
+  logger: Logger;
 }): HemisService {
   let token: string | undefined;
 
