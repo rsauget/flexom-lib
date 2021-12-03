@@ -1,6 +1,5 @@
 import axios from 'axios';
 import urlencode from 'form-urlencoded';
-import { v4 as uuidv4 } from 'uuid';
 import { User } from './model/user';
 import { Zone, Factor, MASTER_ZONE_ID } from './model/zone';
 import { Thing } from './model/thing';
@@ -26,7 +25,7 @@ export type HemisService = {
     value: number;
     wait?: boolean;
     tolerance?: number;
-  }) => Promise<void>;
+  }) => Promise<void | { aborted: boolean }>;
   getThings: () => Promise<Thing[]>;
   subscribe: (listener: HemisListener) => Promise<void>;
   unsubscribe: (
@@ -119,6 +118,7 @@ export function createHemisService({
     return things;
   };
 
+  const promises: Record<string, { abort: () => void }> = {};
   const setZoneFactor: HemisService['setZoneFactor'] = async ({
     id,
     factor,
@@ -126,44 +126,59 @@ export function createHemisService({
     wait = true,
     tolerance = ZONE_FACTOR_TOLERANCE,
   }) => {
-    const listenerId = uuidv4();
+    const listenerId = `${buildingId}:${id}:${factor}`;
+    if (promises[listenerId]) {
+      promises[listenerId].abort();
+    }
+
     const wsClient = await getWsClient();
-    const promise = new Promise<void>((resolve, reject) => {
-      if (!wait) resolve();
+    const promise = new Promise<void | { aborted: boolean }>(
+      (resolve, reject) => {
+        if (!wait) resolve();
 
-      const timeoutId = setTimeout(async () => {
-        try {
-          const settings = await getZoneSettings({ id });
-          if (Math.abs(settings[factor].value - value) < tolerance) {
-            resolve();
-          } else {
-            reject(
-              new FlexomLibError('Timed out waiting for zone factor update')
-            );
-          }
-          wsClient.removeListener({ id: listenerId });
-        } catch (err) {
-          reject(err);
-        }
-      }, ZONE_FACTOR_WAIT_TIMEOUT);
-
-      wsClient.addListener({
-        id: listenerId,
-        events: ['ACTUATOR_HARDWARE_STATE'],
-        listener: (data) => {
-          if (data.factorId !== factor) return;
-          if (Math.abs(data.value.value - value) > tolerance) return;
+        const timeoutId = setTimeout(async () => {
           try {
-            clearTimeout(timeoutId);
+            const settings = await getZoneSettings({ id });
+            if (Math.abs(settings[factor].value - value) < tolerance) {
+              resolve();
+            } else {
+              reject(
+                new FlexomLibError('Timed out waiting for zone factor update')
+              );
+            }
             wsClient.removeListener({ id: listenerId });
           } catch (err) {
-            logger.warn({ err }, 'error cleaning up listener');
-          } finally {
-            resolve();
+            reject(err);
           }
-        },
-      });
-    });
+        }, ZONE_FACTOR_WAIT_TIMEOUT);
+
+        promises[listenerId] = {
+          abort: () => {
+            clearTimeout(timeoutId);
+            wsClient.removeListener({ id: listenerId });
+            delete promises[listenerId];
+            resolve({ aborted: true });
+          },
+        };
+
+        wsClient.addListener({
+          id: listenerId,
+          events: ['ACTUATOR_HARDWARE_STATE'],
+          listener: (data) => {
+            if (data.factorId !== factor) return;
+            if (Math.abs(data.value.value - value) > tolerance) return;
+            try {
+              clearTimeout(timeoutId);
+              wsClient.removeListener({ id: listenerId });
+            } catch (err) {
+              logger.warn({ err }, 'error cleaning up listener');
+            } finally {
+              resolve();
+            }
+          },
+        });
+      }
+    );
 
     await client.put<void>(
       `/WS_ReactiveEnvironmentDataManagement/${id}/settings/${factor}/value`,
