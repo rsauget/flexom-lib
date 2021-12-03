@@ -10,7 +10,7 @@ import { FlexomLibError } from '../error';
 import { Logger } from '../logger';
 
 const ZONE_FACTOR_WAIT_TIMEOUT = 60000;
-const ZONE_FACTOR_TOLERANCE = 0.02;
+const ZONE_FACTOR_TOLERANCE = 0.05;
 
 export type HemisService = {
   login: (_: {
