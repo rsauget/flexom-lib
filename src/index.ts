@@ -1,5 +1,5 @@
 import _ from 'lodash';
-import createLogger, { pino } from 'pino';
+import { pino } from 'pino';
 import WebSocket from 'ws';
 import { FlexomLibError } from './error';
 import { createHemisService, HemisService } from './hemis/hemis';
@@ -24,7 +24,7 @@ async function login({
 }: {
   email: string;
   password: string;
-  logger: pino.BaseLogger;
+  logger: pino.Logger;
 }): Promise<Auth> {
   const ubiant = createUbiantService();
   const ubiantUser = await ubiant.login({ email, password });
@@ -58,11 +58,11 @@ async function login({
 async function createClient({
   email,
   password,
-  logger = createLogger(),
+  logger = pino(),
 }: {
   email: string;
   password: string;
-  logger?: pino.BaseLogger;
+  logger?: pino.Logger;
 }): Promise<Client> {
   let auth = await login({ email, password, logger });
 

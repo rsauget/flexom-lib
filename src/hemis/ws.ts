@@ -23,7 +23,7 @@ export async function createWsClient({
   wsUrl: string;
   buildingId: string;
   token: string;
-  logger: pino.BaseLogger;
+  logger: pino.Logger;
 }): Promise<WsClient> {
   const client = new StompJs.Client({
     brokerURL: wsUrl,

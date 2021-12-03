@@ -46,7 +46,7 @@ export function createHemisService({
   wsUrl: string;
   userId: string;
   buildingId: string;
-  logger: pino.BaseLogger;
+  logger: pino.Logger;
 }): HemisService {
   let token: string | undefined;
 
