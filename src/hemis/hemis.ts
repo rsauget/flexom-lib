@@ -1,5 +1,6 @@
 import axios from 'axios';
 import urlencode from 'form-urlencoded';
+import _ from 'lodash';
 import { User } from './model/user';
 import { Zone, Factor, MASTER_ZONE_ID } from './model/zone';
 import { Thing } from './model/thing';
@@ -49,6 +50,8 @@ export function createHemisService({
 }): HemisService {
   let token: string | undefined;
 
+  const promises: Record<string, { abort: () => void }> = {};
+
   const client = axios.create({
     baseURL: baseUrl,
     headers: {
@@ -91,10 +94,14 @@ export function createHemisService({
   };
 
   const logout: HemisService['logout'] = async () => {
-    token = undefined;
-    const wsClient = await getWsClient();
-    if (!wsClient) return;
-    wsClient.disconnect();
+    try {
+      token = undefined;
+      const wsClient = await getWsClient();
+      wsClient?.disconnect();
+      await Promise.all(_.map(promises, async ({ abort }) => abort()));
+    } catch (err) {
+      logger.error({ err }, 'Logout failed');
+    }
   };
 
   const getZones: HemisService['getZones'] = async () => {
@@ -118,7 +125,6 @@ export function createHemisService({
     return things;
   };
 
-  const promises: Record<string, { abort: () => void }> = {};
   const setZoneFactor: HemisService['setZoneFactor'] = async ({
     id,
     factor,
@@ -127,11 +133,11 @@ export function createHemisService({
     tolerance = ZONE_FACTOR_TOLERANCE,
   }) => {
     const listenerId = `${buildingId}:${id}:${factor}`;
-    if (promises[listenerId]) {
-      promises[listenerId].abort();
-    }
+
+    promises[listenerId]?.abort();
 
     const wsClient = await getWsClient();
+
     const promise = new Promise<void | { aborted: boolean }>(
       (resolve, reject) => {
         if (!wait) resolve();
@@ -154,10 +160,15 @@ export function createHemisService({
 
         promises[listenerId] = {
           abort: () => {
-            clearTimeout(timeoutId);
-            wsClient.removeListener({ id: listenerId });
-            delete promises[listenerId];
-            resolve({ aborted: true });
+            try {
+              clearTimeout(timeoutId);
+              wsClient.removeListener({ id: listenerId });
+              delete promises[listenerId];
+            } catch (err) {
+              logger.error({ err }, 'Abort failed');
+            } finally {
+              resolve({ aborted: true });
+            }
           },
         };
 

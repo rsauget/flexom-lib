@@ -70,7 +70,8 @@ async function createClient({
     fn: (auth: Auth) => (...args: T) => Promise<U>
   ) {
     return async (...args: T) => {
-      if (!auth?.ubiant?.isTokenValid()) {
+      if (!auth.ubiant.isTokenValid()) {
+        await auth.hemis.logout();
         auth = await login({ email, password, logger });
       }
       return fn(auth)(...args);
