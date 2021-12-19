@@ -4,7 +4,7 @@ import _ from 'lodash';
 import { User } from './model/user';
 import { Zone, Factor, MASTER_ZONE_ID } from './model/zone';
 import { Thing } from './model/thing';
-import { HemisListener } from './model/event';
+import { HemisListener, EventType } from './model/event';
 import { createWsClient, WsClient } from './ws';
 import { FlexomLibError } from '../error';
 import { Logger } from '../logger';
@@ -28,7 +28,9 @@ export type HemisService = {
     tolerance?: number;
   }) => Promise<void | { aborted: boolean }>;
   getThings: () => Promise<Thing[]>;
-  subscribe: (listener: HemisListener) => Promise<void>;
+  subscribe: <T extends EventType[] | undefined>(
+    listener: HemisListener<T>
+  ) => Promise<void>;
   unsubscribe: (
     listener: Pick<HemisListener, 'id'> & Partial<HemisListener>
   ) => Promise<void>;
@@ -90,6 +92,8 @@ export function createHemisService({
       kernelId,
     });
     token = user.token;
+    const wsClient = await getWsClient();
+    wsClient?.updateToken(token);
     return user;
   };
 

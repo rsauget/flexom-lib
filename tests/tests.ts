@@ -1,7 +1,6 @@
 import { describe, it } from 'mocha';
 import { expect } from 'chai';
 import * as Flexom from '../src';
-import { Device } from '../src/ubiant/model/device';
 import { Building } from '../src/ubiant/model/building';
 import { User as UbiantUser } from '../src/ubiant/model/user';
 import { User as HemisUser } from '../src/hemis/model/user';
@@ -9,7 +8,6 @@ import { UbiantService } from '../src/ubiant/ubiant';
 
 interface FlexomTestData {
   auth: {
-    device: Device;
     ubiantUser: UbiantUser;
     hemisUser: HemisUser;
     buildings: Building[];
@@ -45,7 +43,7 @@ describe('Integration with Flexom APIs', () => {
     });
   });
 
-  describe('Commands', () => {
+  describe.skip('Commands', () => {
     it('Toggle light in test zone', async () => {
       const id = process.env.FLEXOM_TEST_ZONE!;
       const factor = 'BRI';
@@ -68,7 +66,7 @@ describe('Integration with Flexom APIs', () => {
       await flexom.disconnect();
     });
 
-    it('Toggle window covering in test zone', async () => {
+    it.skip('Toggle window covering in test zone', async () => {
       const id = process.env.FLEXOM_TEST_ZONE!;
       const factor = 'BRIEXT';
       const flexom = await Flexom.createClient({
@@ -95,6 +93,21 @@ describe('Integration with Flexom APIs', () => {
       });
       const things = await flexom.getThings();
       console.log(JSON.stringify(things, null, 2));
+    });
+
+    it('Listen events', async () => {
+      const zoneId = process.env.FLEXOM_TEST_ZONE!;
+      const flexom = await Flexom.createClient({
+        email: process.env.FLEXOM_EMAIL!,
+        password: process.env.FLEXOM_PASSWORD!,
+      });
+      const id = '#testListener';
+      await flexom.subscribe({
+        id,
+        zoneId,
+        listener: (data) => console.log(data),
+      });
+      setTimeout(async () => flexom.disconnect(), 30000);
     });
   });
 });

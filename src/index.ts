@@ -5,7 +5,6 @@ import { createHemisService, HemisService } from './hemis/hemis';
 import { Thing } from './hemis/model/thing';
 import { Factor, Zone } from './hemis/model/zone';
 import { getDefaultLogger, Logger } from './logger';
-import { Auth } from './model/auth';
 import { createUbiantService } from './ubiant/ubiant';
 
 Object.assign(global, { WebSocket });
@@ -17,17 +16,17 @@ type Client = Omit<HemisService, 'login' | 'logout'> & {
 
 export { Thing, Zone, Factor, Client, createClient };
 
-async function login({
+async function createClient({
   email,
   password,
-  logger,
+  logger = getDefaultLogger(),
 }: {
   email: string;
   password: string;
-  logger: Logger;
-}): Promise<Auth> {
+  logger?: Logger;
+}): Promise<Client> {
   const ubiant = createUbiantService();
-  const ubiantUser = await ubiant.login({ email, password });
+  let ubiantUser = await ubiant.login({ email, password });
   const buildings = await ubiant.getBuildings();
   if (_.isEmpty(buildings)) {
     throw new FlexomLibError('No building found');
@@ -41,52 +40,37 @@ async function login({
     buildingId: building.buildingId,
     logger,
   });
-  const hemisUser = await hemis.login({
+  let hemisUser = await hemis.login({
     email: ubiantUser.email,
     token: building.authorizationToken,
     kernelId: building.kernel_slot,
   });
-  return {
-    ubiant,
-    ubiantUser,
-    hemis,
-    hemisUser,
-    buildings,
-  };
-}
 
-async function createClient({
-  email,
-  password,
-  logger = getDefaultLogger(),
-}: {
-  email: string;
-  password: string;
-  logger?: Logger;
-}): Promise<Client> {
-  let auth = await login({ email, password, logger });
-
-  function withAuth<T extends unknown[], U>(
-    fn: (auth: Auth) => (...args: T) => Promise<U>
-  ) {
+  function withAuth<T extends unknown[], U>(fn: (...args: T) => Promise<U>) {
     return async (...args: T) => {
-      if (!auth.ubiant.isTokenValid()) {
-        await auth.hemis.logout();
-        auth = await login({ email, password, logger });
+      if (!ubiant.isTokenValid()) {
+        ubiantUser = await ubiant.login({ email, password });
+        hemisUser = await hemis.login({
+          email: ubiantUser.email,
+          token: building.authorizationToken,
+          kernelId: building.kernel_slot,
+        });
       }
-      return fn(auth)(...args);
+      return fn(...args);
     };
   }
 
   return {
-    getThings: withAuth(({ hemis }) => hemis.getThings),
-    getZones: withAuth(({ hemis }) => hemis.getZones),
-    getZoneSettings: withAuth(({ hemis }) => hemis.getZoneSettings),
-    setZoneFactor: withAuth(({ hemis }) => hemis.setZoneFactor),
-    subscribe: withAuth(({ hemis }) => hemis.subscribe),
-    unsubscribe: withAuth(({ hemis }) => hemis.unsubscribe),
-    disconnect: withAuth(({ hemis }) => hemis.logout),
+    getThings: withAuth(hemis.getThings),
+    getZones: withAuth(hemis.getZones),
+    getZoneSettings: withAuth(hemis.getZoneSettings),
+    setZoneFactor: withAuth(hemis.setZoneFactor),
+    subscribe: withAuth(hemis.subscribe),
+    unsubscribe: withAuth(hemis.unsubscribe),
+    disconnect: withAuth(hemis.logout),
 
-    ...(process.env.NODE_ENV === 'test' && { testData: { auth } }),
+    ...(process.env.NODE_ENV === 'test' && {
+      testData: { ubiantUser, hemisUser, buildings, ubiant },
+    }),
   };
 }

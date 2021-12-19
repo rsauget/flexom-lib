@@ -44,6 +44,7 @@ export type HemisListener<
 > = {
   id: string;
   events?: T;
+  zoneId?: string;
   listener: (
     data: T extends 'ACTUATOR_HARDWARE_STATE'[]
       ? ActuatorHardwareStateEvent

@@ -1,6 +1,6 @@
 import _ from 'lodash';
 import * as StompJs from '@stomp/stompjs';
-import { HemisListener, EventType } from './model/event';
+import { HemisListener, EventType, HemisEvent } from './model/event';
 import { FlexomLibError } from '../error';
 import { Logger } from '../logger';
 
@@ -12,6 +12,7 @@ export type WsClient = {
     listener: Pick<HemisListener, 'id'> & Partial<HemisListener>
   ) => void;
   disconnect: () => Promise<void>;
+  updateToken: (token: string) => void;
 };
 
 export async function createWsClient({
@@ -41,13 +42,14 @@ export async function createWsClient({
   client.onConnect = () => {
     client.subscribe(`jms.topic.${buildingId}.data`, async (message) => {
       try {
-        const data = JSON.parse(message.body);
+        const data: HemisEvent = JSON.parse(message.body);
         logger.debug({ data }, 'event received');
         await Promise.all(
           _.chain(listeners)
             .filter(
               ({ events }) => _.isEmpty(events) || _.includes(events, data.type)
             )
+            .filter(({ zoneId }) => _.isEmpty(zoneId) || zoneId === data.zoneId)
             .map(async ({ listener }) => listener(data))
             .value()
         );
@@ -89,5 +91,14 @@ export async function createWsClient({
     await client.deactivate();
   };
 
-  return { addListener, removeListener, disconnect };
+  const updateToken: WsClient['updateToken'] = (newToken) => {
+    client.connectHeaders.passcode = newToken;
+  };
+
+  return {
+    addListener,
+    removeListener,
+    disconnect,
+    updateToken,
+  };
 }
