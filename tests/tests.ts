@@ -7,23 +7,21 @@ import { User as HemisUser } from '../src/hemis/model/user';
 import { UbiantService } from '../src/ubiant/ubiant';
 
 interface FlexomTestData {
-  auth: {
-    ubiantUser: UbiantUser;
-    hemisUser: HemisUser;
-    buildings: Building[];
-    ubiant: UbiantService;
-  };
+  ubiantUser: UbiantUser;
+  hemisUser: HemisUser;
+  buildings: Building[];
+  ubiant: UbiantService;
 }
 
 describe('Integration with Flexom APIs', () => {
-  describe.skip('Login', () => {
-    it('correct credentials', async () => {
+  describe('Login', () => {
+    it.only('correct credentials', async () => {
       const flexom = await Flexom.createClient({
         email: process.env.FLEXOM_EMAIL!,
         password: process.env.FLEXOM_PASSWORD!,
       });
-      const { auth } = flexom.testData as FlexomTestData;
-      const { ubiant, ubiantUser, hemisUser, buildings } = auth;
+      const { ubiant, ubiantUser, hemisUser, buildings } =
+        flexom.testData as FlexomTestData;
       expect(ubiant.isTokenValid()).to.be.true;
       expect(ubiantUser.email).to.equal(process.env.FLEXOM_EMAIL);
       expect(buildings.length).to.be.greaterThan(0);

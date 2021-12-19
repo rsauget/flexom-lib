@@ -1,5 +1,6 @@
 import _ from 'lodash';
 import WebSocket from 'ws';
+import retry from 'async-retry';
 import { FlexomLibError } from './error';
 import { createHemisService, HemisService } from './hemis/hemis';
 import { Thing } from './hemis/model/thing';
@@ -25,8 +26,27 @@ async function createClient({
   password: string;
   logger?: Logger;
 }): Promise<Client> {
+  async function retry429<T>(fn: () => Promise<T>) {
+    return retry(
+      async (bail) => {
+        try {
+          return await fn();
+        } catch (err: any) {
+          if (_.get(err, 'response.status') !== 429) bail(err);
+          throw err;
+        }
+      },
+      {
+        onRetry: () =>
+          logger.warn('Too many login requests, waiting to retry...'),
+      }
+    );
+  }
+
   const ubiant = createUbiantService();
-  let ubiantUser = await ubiant.login({ email, password });
+  let ubiantUser = await retry429(async () =>
+    ubiant.login({ email, password })
+  );
   const buildings = await ubiant.getBuildings();
   if (_.isEmpty(buildings)) {
     throw new FlexomLibError('No building found');
@@ -40,21 +60,27 @@ async function createClient({
     buildingId: building.buildingId,
     logger,
   });
-  let hemisUser = await hemis.login({
-    email: ubiantUser.email,
-    token: building.authorizationToken,
-    kernelId: building.kernel_slot,
-  });
+  let hemisUser = await retry429(async () =>
+    hemis.login({
+      email: ubiantUser.email,
+      token: building.authorizationToken,
+      kernelId: building.kernel_slot,
+    })
+  );
 
   function withAuth<T extends unknown[], U>(fn: (...args: T) => Promise<U>) {
     return async (...args: T) => {
       if (!ubiant.isTokenValid()) {
-        ubiantUser = await ubiant.login({ email, password });
-        hemisUser = await hemis.login({
-          email: ubiantUser.email,
-          token: building.authorizationToken,
-          kernelId: building.kernel_slot,
-        });
+        ubiantUser = await retry429(async () =>
+          ubiant.login({ email, password })
+        );
+        hemisUser = await retry429(async () =>
+          hemis.login({
+            email: ubiantUser.email,
+            token: building.authorizationToken,
+            kernelId: building.kernel_slot,
+          })
+        );
       }
       return fn(...args);
     };
