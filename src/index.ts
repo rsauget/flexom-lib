@@ -27,20 +27,18 @@ async function createClient({
   logger?: Logger;
 }): Promise<Client> {
   async function retry429<T>(fn: () => Promise<T>) {
-    return retry(
-      async (bail) => {
-        try {
-          return await fn();
-        } catch (err: any) {
-          if (_.get(err, 'response.status') !== 429) bail(err);
-          throw err;
+    return retry(async (bail) => {
+      try {
+        return await fn();
+      } catch (err: any) {
+        if (_.get(err, 'response.status') === 429) {
+          logger.warn('Too many login requests, waiting to retry...');
+        } else {
+          bail(err);
         }
-      },
-      {
-        onRetry: () =>
-          logger.warn('Too many login requests, waiting to retry...'),
+        throw err;
       }
-    );
+    });
   }
 
   const ubiant = createUbiantService();
