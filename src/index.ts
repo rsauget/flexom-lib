@@ -30,11 +30,11 @@ async function createClient({
     return retry(async (bail) => {
       try {
         return await fn();
-      } catch (err: any) {
+      } catch (err: unknown) {
         if (_.get(err, 'response.status') === 429) {
           logger.warn('Too many login requests, waiting to retry...');
         } else {
-          bail(err);
+          bail(err as Error);
         }
         throw err;
       }
@@ -50,6 +50,7 @@ async function createClient({
     throw new FlexomLibError('No building found');
   }
   // TODO: handle multiple buildings
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
   const building = _.first(buildings)!;
   const hemis = createHemisService({
     baseUrl: building.hemis_base_url,

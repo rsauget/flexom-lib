@@ -101,7 +101,7 @@ export function createHemisService({
     try {
       token = undefined;
       const wsClient = await getWsClient();
-      wsClient?.disconnect();
+      await wsClient?.disconnect();
       await Promise.all(_.map(promises, async ({ abort }) => abort()));
     } catch (err) {
       logger.error({ err }, 'Logout failed');
