@@ -22,7 +22,7 @@
     "@types/async-retry": "1.4.3",
     "@types/chai": "4.3.0",
     "@types/jsonwebtoken": "8.5.8",
-    "@types/lodash": "4.14.178",
+    "@types/lodash": "4.14.180",
     "@types/mocha": "9.1.0",
     "@types/node": "16.11.26",
     "@types/ws": "8.2.3",
