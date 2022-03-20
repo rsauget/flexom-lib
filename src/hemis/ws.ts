@@ -32,9 +32,9 @@ export async function createWsClient({
       login: buildingId,
       passcode: token,
     },
-    reconnectDelay: 100,
-    heartbeatIncoming: 5000,
-    heartbeatOutgoing: 5000,
+    reconnectDelay: 1000,
+    heartbeatIncoming: 20000,
+    heartbeatOutgoing: 20000,
   });
 
   const listeners: Record<string, HemisListener> = {};

@@ -35,8 +35,11 @@ describe('Integration with Flexom APIs', () => {
           password: 'wrong_password',
         });
         expect.fail();
-      } catch (error: any) {
-        expect(error.message).to.equal('Request failed with status code 401');
+      } catch (error: unknown) {
+        expect(error).to.be.an.instanceOf(Error);
+        expect((error as Error).message).to.equal(
+          'Request failed with status code 401'
+        );
       }
     });
   });
