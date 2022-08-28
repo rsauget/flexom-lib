@@ -21,7 +21,7 @@
   "devDependencies": {
     "@types/async-retry": "1.4.5",
     "@types/chai": "4.3.3",
-    "@types/jsonwebtoken": "8.5.8",
+    "@types/jsonwebtoken": "8.5.9",
     "@types/lodash": "4.14.182",
     "@types/mocha": "9.1.0",
     "@types/node": "16.11.26",
