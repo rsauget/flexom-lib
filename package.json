@@ -24,7 +24,7 @@
     "@types/jsonwebtoken": "8.5.9",
     "@types/lodash": "4.14.201",
     "@types/mocha": "10.0.4",
-    "@types/node": "16.11.58",
+    "@types/node": "16.18.61",
     "@types/ws": "8.5.9",
     "@typescript-eslint/eslint-plugin": "5.62.0",
     "@typescript-eslint/parser": "5.62.0",
