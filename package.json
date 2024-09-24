@@ -20,7 +20,7 @@
   },
   "devDependencies": {
     "@types/async-retry": "1.4.8",
-    "@types/chai": "4.3.16",
+    "@types/chai": "4.3.20",
     "@types/jsonwebtoken": "9.0.6",
     "@types/lodash": "4.17.6",
     "@types/mocha": "10.0.7",
